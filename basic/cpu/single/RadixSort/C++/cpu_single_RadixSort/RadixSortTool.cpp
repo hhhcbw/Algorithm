@@ -53,38 +53,86 @@ int RadixSortTool::GetNumBase()
 	return numBase;
 }
 
-void RadixSortTool::Sort(int *input_array, int size)
+void RadixSortTool::Sort(int *input_array, int start_pos, int end_pos, int sort_type, int sort_method)
 {
 	assert(numBins % numBits == 0); // numBin must integral times of numBits
+	assert(start_pos >= 0);
+	assert(end_pos >= start_pos);
+
+	int size = end_pos - start_pos;
 	int* auxArray = new int[size]; // auxiliary array
 	int baseNum = 1;
 
-	for (int i = 0; i < numBins; i += numBits) {
-		for (int j = 0; j < interval; ++j) {
-			binHistogram[j] = binScan[j] = 0;
-		}
+	switch (sort_method)
+	{
+	case LeastSignificantDigital: // LSD
+		for (int i = 0; i < numBins; i += numBits) {
+			for (int j = 0; j < interval; ++j) {
+				binHistogram[j] = binScan[j] = 0;
+			}
 
-		for (int j = 0; j < size; ++j) { // count number of each num of i-th bit of input_array
-			int temp = (input_array[j] / baseNum) % interval; // Get i-th bit of each number in input_array
-			binHistogram[temp] ++;
-		}
+			for (int j = start_pos; j < end_pos; ++j) { // count number of each num of i-th bit of input_array
+				int temp = (input_array[j] / baseNum) % interval; // Get i-th bit of each number in input_array
+				binHistogram[temp] ++;
+			}
 
-		for (int j = 1; j < interval; ++j) { // calculate offset as basic index of each num
-			binScan[j] = binScan[j - 1] + binHistogram[j - 1];
-		}
+			for (int j = 1; j < interval; ++j) { // calculate offset as basic index of each num
+				binScan[j] = binScan[j - 1] + binHistogram[j - 1];
+			}
 
-		for (int j = 0; j < size; ++j) { // proceed to sort, insert number into corresponding bucket
-			int temp = (input_array[j] / baseNum) % interval;
-			auxArray[binScan[temp]++] = input_array[j];
-		}
+			for (int j = start_pos; j < end_pos; ++j) { // proceed to sort, insert number into corresponding bucket
+				int temp = (input_array[j] / baseNum) % interval;
+				auxArray[binScan[temp]++] = input_array[j];
+			}
 
-		for (int j = 0; j < size; ++j) { // copy from auxArray to input_array
-			input_array[j] = auxArray[j];
-		}
-		//std::swap(input_array, auxArray); // Error, swap will cause delete error
+			for (int j = 0; j < size; ++j) { // copy from auxArray to input_array
+				input_array[j + start_pos] = auxArray[j];
+			}
+			//std::swap(input_array, auxArray); // Error, swap will cause delete error
 
-		baseNum *= interval; // update baseNum
+			baseNum *= interval; // update baseNum
+		}
+		break;
+
+	case MostSignificantDigital: // MSD wating to program
+		for (int i = 0; i < numBins; i += numBits) {
+			for (int j = 0; j < interval; ++j) {
+				binHistogram[j] = binScan[j] = 0;
+			}
+
+			for (int j = start_pos; j < end_pos; ++j) { // count number of each num of i-th bit of input_array
+				int temp = (input_array[j] / baseNum) % interval; // Get i-th bit of each number in input_array
+				binHistogram[temp] ++;
+			}
+
+			for (int j = 1; j < interval; ++j) { // calculate offset as basic index of each num
+				binScan[j] = binScan[j - 1] + binHistogram[j - 1];
+			}
+
+			for (int j = start_pos; j < end_pos; ++j) { // proceed to sort, insert number into corresponding bucket
+				int temp = (input_array[j] / baseNum) % interval;
+				auxArray[binScan[temp]++] = input_array[j];
+			}
+
+			for (int j = 0; j < size; ++j) { // copy from auxArray to input_array
+				input_array[j + start_pos] = auxArray[j];
+			}
+			//std::swap(input_array, auxArray); // Error, swap will cause delete error
+
+			baseNum *= interval; // update baseNum
+		}
+		break;
+
+	default:
+		break;
 	}
+
+	if (sort_type == DESCENDING) { // if sort_type is descending reverse input_array
+		for (int i = 0; i < size; ++i) {
+			input_array[i + start_pos] = auxArray[size - i - 1];
+		}
+	}
+
 	delete [] auxArray;
 }
 

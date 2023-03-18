@@ -1,7 +1,8 @@
-﻿  cpu_single_RadixSort.cpp
+﻿  RadixSortTool.cpp
+  cpu_single_RadixSort.cpp
   正在生成代码
-  1 of 18 functions ( 5.6%) were compiled, the rest were copied from previous compilation.
+  2 of 18 functions (11.1%) were compiled, the rest were copied from previous compilation.
     0 functions were new in current compilation
-    0 functions had inline decision re-evaluated but remain unchanged
+    3 functions had inline decision re-evaluated but remain unchanged
   已完成代码的生成
   cpu_single_RadixSort.vcxproj -> C:\Code\VisualStudio\Algorithm\basic\cpu\single\RadixSort\C++\cpu_single_RadixSort\x64\Release\cpu_single_RadixSort.exe
