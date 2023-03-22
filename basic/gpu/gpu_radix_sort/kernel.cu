@@ -1,13 +1,14 @@
 ﻿#include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <iostream>
+#include <iomanip>
 
-#define SIZE 100000
-#define THREADS 1024
+#define SIZE 524288
+#define THREADS 128
 #define blockSize ((int)ceil((float)SIZE / THREADS))
 #define numBits 1
-#define numBins 25
-#define numBase 2
+#define numBins 6
+#define numBase 10
 
 __global__ void CalBinHistogram(int* bin_histogram, const int* input_vals, const int base_num)
 {
@@ -82,12 +83,20 @@ int main(void)
 {
     //int inputVals[SIZE] = {149124, 41283, 14765, 14624, 5523, 1244, 3523, 3252, 12532, 92580}, outputVals[SIZE];
     //int inputVals[SIZE] = { 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 }, outputVals[SIZE];
-    int inputVals[SIZE], outputVals[SIZE];
+    int* inputVals = new int[SIZE];
+    int* outputVals = new int[SIZE];
+    int* binHistogram = new int[numBase * blockSize];
+    int* binScan = new int[numBase * blockSize];
+
+    int* dev_inputVals, * dev_outputVals, * dev_binHistogram, * dev_binScan, * dev_bins, * dev_offset;
+
     for (int i = 0; i < SIZE; ++i)
         inputVals[i] = SIZE - i - 1;
-    //int binHistogram[numBase * 1000], binScan[numBase * 1000], bins[SIZE], offset[SIZE];
-    int dev_baseNum = 1;
-    int* dev_inputVals, * dev_outputVals, * dev_binHistogram, * dev_binScan, * dev_bins, * dev_offset;
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start, 0);
 
     // alloc memory in device
     cudaMalloc((void**)&dev_inputVals , SIZE * sizeof(int));
@@ -100,48 +109,36 @@ int main(void)
     // copy data from host to device
     cudaMemcpy(dev_inputVals, inputVals, SIZE * sizeof(int), cudaMemcpyHostToDevice);
 
+    int dev_baseNum = 1;
+
     for (int i = 0; i < numBins; i += numBits) {
         cudaMemset(dev_binHistogram, 0, numBase * blockSize * sizeof(int));
-        cudaMemset(dev_binScan, 0, numBase * blockSize * sizeof(int));
+        memset(binScan, 0, numBase * blockSize * sizeof(int));
         cudaMemset(dev_offset, 0, SIZE * sizeof(int));
 
-        //std::cout << blockSize << std::endl;
-
         CalBinHistogram <<<blockSize, THREADS>>> (dev_binHistogram, dev_inputVals, dev_baseNum);
-        //cudaMemcpy(binHistogram, dev_binHistogram, numBase * blockSize * sizeof(int), cudaMemcpyDeviceToHost);
-        //for (int j = 0; j < numBase * blockSize; ++j) {
-        //    std::cout << binHistogram[j] << " ";
-        //}
-        //std::cout << std::endl;
 
-        CalBinScan <<<1, numBase * blockSize>>> (dev_binScan, dev_binHistogram);
+        // This method limits amount of data, because numBase * blockSize must <= 1024
+        //CalBinScan <<<1, numBase * blockSize>>> (dev_binScan, dev_binHistogram);
         //cudaMemcpy(binScan, dev_binScan, numBase * blockSize * sizeof(int), cudaMemcpyDeviceToHost);
         //for (int j = 0; j < numBase * blockSize; ++j) {
         //    std::cout << binScan[j] << " ";
         //}
         //std::cout << std::endl;
 
+        // This method doesn't limit amount of data.
+        cudaMemcpy(binHistogram, dev_binHistogram, numBase * blockSize * sizeof(int), cudaMemcpyDeviceToHost);
+        for (int j = 1; j < numBase * blockSize; ++j) {
+            binScan[j] = binScan[j - 1] + binHistogram[j - 1];
+        }
+        cudaMemcpy(dev_binScan, binScan, numBase * blockSize * sizeof(int), cudaMemcpyHostToDevice);
+
         for (int j = 0; j < numBase; ++j) {
             CalScanArray <<<blockSize, THREADS>>> (dev_bins, dev_inputVals, dev_baseNum, j);
-            //cudaMemcpy(bins, dev_bins, SIZE * sizeof(int), cudaMemcpyDeviceToHost);
-            //for (int k = 0; k < SIZE; ++k) {
-            //    std::cout << bins[k] << " ";
-            //}
-            //std::cout << std::endl;
             CalOffset <<<blockSize, THREADS>>> (dev_offset, dev_bins);
-            //cudaMemcpy(offset, dev_offset, SIZE * sizeof(int), cudaMemcpyDeviceToHost);
-            //for (int k = 0; k < SIZE; ++k) {
-            //    std::cout << offset[k] << " ";
-            //}
-            //std::cout << std::endl;
         }
 
         CalSortArray <<<blockSize , THREADS>>> (dev_outputVals, dev_inputVals, dev_binScan, dev_offset, dev_baseNum);
-        //cudaMemcpy(outputVals, dev_outputVals, SIZE * sizeof(int), cudaMemcpyDeviceToHost);
-        //for (int j = 0; j < SIZE; ++j) {
-        //    std::cout << outputVals[j] << " ";
-        //}
-        //std::cout << std::endl;
 
         cudaMemcpy(dev_inputVals, dev_outputVals, SIZE * sizeof(int), cudaMemcpyDeviceToDevice);
         dev_baseNum *= numBase;
@@ -170,6 +167,15 @@ int main(void)
     cudaFree(dev_bins);
     cudaFree(dev_offset);
 
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+
+    float elapsedTime;
+    cudaEventElapsedTime(&elapsedTime, start, stop);
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+
     // check answer
     for (int i = 0; i < SIZE; ++i) {
         if (outputVals[i] != i) {
@@ -178,5 +184,12 @@ int main(void)
         }
     }
     std::cout << "answer is right" << std::endl;
+    std::cout << std::fixed << std::setprecision(5) << elapsedTime << "ms" << std::endl;
+    
+    delete[] inputVals;
+    delete[] outputVals;
+    delete[] binHistogram;
+    delete[] binScan;
+ 
     return 0;
 }
