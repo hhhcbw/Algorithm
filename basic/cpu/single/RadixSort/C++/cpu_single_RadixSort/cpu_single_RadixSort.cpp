@@ -11,7 +11,7 @@ int main()
     for (int i = 0; i < SIZE; ++i) {
         input_array[i] = SIZE - i - 1;
     }
-    radix_sort_tool.SetNumBase(10);
+    radix_sort_tool.SetNumBase(100);
     radix_sort_tool.SetNumBins(8);
     radix_sort_tool.SetNumBits(1);
     DWORD start_time = GetTickCount64();

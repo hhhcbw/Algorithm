@@ -4,6 +4,7 @@
 #include <iomanip>
 
 #define SIZE 524288
+//#define SIZE 10
 #define THREADS 128
 #define blockSize ((int)ceil((float)SIZE / THREADS))
 #define numBits 1
